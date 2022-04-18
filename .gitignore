@@ -1,0 +1,17 @@
+# Python
+*.egg-info
+__pycache__
+.pytest_cache
+.mypy_cache
+.python-version
+.coverage
+coverage.xml
+test-results
+
+# Local
+.env
+.envrc
+.env.bak
+.DS_Store
+.vim
+

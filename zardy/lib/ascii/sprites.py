@@ -48,18 +48,21 @@ class Sprite:
     def textbox(self) -> str:
         '''getter property for the aligned and padded sprite text'''
         padded_lines = []
+        x, y = self.dim
+        box_width = max(x, self.min_width)
+        box_height = max(y, self.min_height)
+
         for line in self.__ascii.splitlines():
-            left_margin, right_margin = Sprite.margins(len(line), self.min_width, self.align)
+            left_margin, right_margin = Sprite.margins(len(line), box_width, self.align)
             left_pad, right_pad = (self.padding * left_margin), (self.padding * right_margin)
             padded_lines.append(f"{left_pad}{line}{right_pad}")
 
-        x, y = self.dim
-        pad = (self.padding * x)
+        pad = (self.padding * box_width)
         height = len(padded_lines)
-        if height >= max(y, self.min_height):
+        if height >= box_height:
             return NEWLINE.join(padded_lines)
 
-        top_margin, bottom_margin = Sprite.margins(height, self.min_height, self.align, vertical=True)
+        top_margin, bottom_margin = Sprite.margins(height, box_height, self.align, vertical=True)
         top_padding, bottom_padding = [pad] * top_margin, [pad] * bottom_margin
 
         return NEWLINE.join(top_padding + padded_lines + bottom_padding)
@@ -79,6 +82,11 @@ class Sprite:
     def rows(self) -> List[str]:
         '''accessor for aligned/padded sprite text box split into rows'''
         return self.textbox.splitlines()
+
+    @property
+    def blank_row(self) -> str:
+        x, _ = self.dim
+        return self.padding * x
 
     @property
     def options(self) -> Dict[str, Any]:
@@ -115,8 +123,7 @@ class Sprite:
             line = self.rows[index]
             return line
         except IndexError:
-            x, _ = self.dim
-            return self.padding * x
+            return self.blank_row
 
     @staticmethod
     def margins(dim: int, min_dim: int, alignment: Alignment, vertical: bool = False) ->  Tuple[int, int]:
@@ -136,37 +143,63 @@ class Sprite:
         return int((min_dim - dim) / 2), int((min_dim - dim) / 2) + ((min_dim - dim) %  2)
 
 
-RecursiveSpriteOperation = Union[Sprite, Iterable['RecursiveSpriteOperation']]
-MergeableEdge = Literal[Alignment.RIGHT, Alignment.BOTTOM]
-def merge(edge: MergeableEdge, align: Alignment, *sprites: Sprite) -> RecursiveSpriteOperation:
-    '''
-    Recursively merge a 1D array of Sprites either from left-to-right, or top-to-bottom
+    RecursiveSpriteOperation = Union['Sprite', Iterable['RecursiveSpriteOperation']]
+    MergeableEdge = Literal[Alignment.RIGHT, Alignment.BOTTOM]
+    @staticmethod
+    def merge(edge: MergeableEdge, align: Alignment, *sprites: Sprite) -> RecursiveSpriteOperation:
+        '''
+        Recursively merge a 1D array of Sprites either from left-to-right, or top-to-bottom
 
-    Parameters
-    ----------
-    edge : MergeableEdge
-        The direction in which to append the sprite textboxes
-    align : Alignment
-        The desired alignment of the final merged Sprite
-    sprites : List[Sprite]
-        Zero or more sprites to merge
-    '''
-    if len(sprites) == 0:
-        return NullSprite
+        Parameters
+        ----------
+        edge : MergeableEdge
+            The direction in which to append the sprite textboxes
+        align : Alignment
+            The desired alignment of the final merged Sprite
+        sprites : List[Sprite]
+            Zero or more sprites to merge
+        '''
+        if len(sprites) == 0:
+            return NullSprite
 
-    if len(sprites) == 1:
-        return sprites[0]
+        if len(sprites) == 1:
+            return sprites[0]
 
-    this, next = sprites[0], merge(edge, align, *sprites[1:]) 
+        this, next = sprites[0], Sprite.merge(edge, align, *sprites[1:]) 
 
-    merged_lines = []
-    for row, line in enumerate(this.rows):
-        adjacent_line = cast(Sprite, next).row(row)
-        if Alignment.RIGHT:
-            merged_lines.append(f"{line}{adjacent_line}")
-        if Alignment.BOTTOM:
-            merged_lines += [line, adjacent_line]
+        merged_lines = []
+        for row, line in enumerate(this.rows):
+            adjacent_line = cast(Sprite, next).row(row)
+            if Alignment.RIGHT:
+                merged_lines.append(f"{line}{adjacent_line}")
+            if Alignment.BOTTOM:
+                merged_lines += [line, adjacent_line]
 
-    return Sprite(NEWLINE.join(merged_lines), align=align)
+        return Sprite(NEWLINE.join(merged_lines), align=align)
+
+
+    Margin = Tuple[Alignment, int]
+    @staticmethod
+    def wrap(sprite: Sprite, *margins: Margin, padding: str = BLANK) -> Sprite:
+        wrapped = {
+            Alignment.LEFT: 0,
+            Alignment.TOP: 0,
+            Alignment.RIGHT: 0,
+            Alignment.BOTTOM: 0
+        }
+        for alignment, margin in margins:
+            wrapped[alignment] = margin
+
+        if padding != BLANK:
+            opts = sprite.options
+            opts['padding'] = padding
+            sprite = Sprite(sprite.textbox, **opts)
+
+        top, bottom = [sprite.blank_row] * wrapped[Alignment.TOP], [sprite.blank_row] * wrapped[Alignment.BOTTOM]
+        left, right = padding * wrapped[Alignment.LEFT], padding * wrapped[Alignment.RIGHT]
+
+        wrapped_lines = top + [f"{left}{line}{right}" for line in sprite.rows] + bottom
+        return Sprite(NEWLINE.join(wrapped_lines), padding=padding)
+
 
 NullSprite = Sprite(BLANK, padding=BLANK)
