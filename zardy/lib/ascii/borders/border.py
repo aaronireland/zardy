@@ -1,7 +1,8 @@
 from typing import Mapping, cast
 
-from ..ascii import Sprite, Align, AsciiError, merge
-from ..ascii import SPACE, NEWLINE
+from ..align import Alignment
+from ..ascii import AsciiError, SPACE
+from ..sprites import Sprite, merge
 
 MIN_PADDING = 1
 
