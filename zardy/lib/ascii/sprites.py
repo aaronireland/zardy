@@ -166,14 +166,25 @@ class Sprite:
             return sprites[0]
 
         this, next = sprites[0], Sprite.merge(edge, align, *sprites[1:]) 
+        this_kwargs, next_kwargs = this.options, cast(Sprite, next).options
 
         merged_lines = []
-        for row, line in enumerate(this.rows):
-            adjacent_line = cast(Sprite, next).row(row)
-            if Alignment.RIGHT:
+        x1, y1 = this.dim
+        x2, y2 = cast(Sprite, next).dim
+        min_width, min_height = max(x1, x2), max(y1, y2)
+
+        if edge == Alignment.RIGHT:
+            this_kwargs['min_height'], next_kwargs['min_height'] = min_height, min_height
+            current = Sprite(this.textbox, **this_kwargs)
+            adjacent = Sprite(cast(Sprite, next).textbox, **next_kwargs)
+            for i in range(min_height):
+                line, adjacent_line = current.row(i), adjacent.row(i)
                 merged_lines.append(f"{line}{adjacent_line}")
-            if Alignment.BOTTOM:
-                merged_lines += [line, adjacent_line]
+        elif edge == Alignment.BOTTOM:
+            this_kwargs['min_width'], next_kwargs['min_width'] = min_width, min_width
+            current = Sprite(this.textbox, **this_kwargs)
+            adjacent = Sprite(cast(Sprite, next).textbox, **next_kwargs)
+            merged_lines = current.rows + adjacent.rows
 
         return Sprite(NEWLINE.join(merged_lines), align=align)
 
